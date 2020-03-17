@@ -26,5 +26,5 @@ Let's say you have this file at **~/opcuadata/mockdata.csv**. Here is how you st
 docker run --name opcua_mockserver --init --rm \
     -v ~/opcuadata:/app/data \
     -p 4840:4840 \
-    intersystemsdc/opcua-mockserver:version-1.0
+    intersystemsdc/opcua-mockserver:version-0.2.0
 ```
