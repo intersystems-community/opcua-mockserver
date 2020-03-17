@@ -13,6 +13,6 @@ FROM library/ubuntu
 
 WORKDIR /app
 
-COPY --from=gcc /tmp/src/build/opcua-sampler /app
+COPY --from=gcc /tmp/src/build/opcua-mockserver /app
 
-ENTRYPOINT [ "/app/opcua-sampler" ]
+ENTRYPOINT [ "/app/opcua-mockserver" ]

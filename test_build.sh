@@ -1,6 +1,6 @@
 #!/bin/bash
 
-source ../buildtools.sh
+source ./buildtools.sh
 
 OPCUA_SAMPLER_IMAGE_NAME=intersystemsdc/irisdemo-demo-oee:opcua-sampler-test
 
