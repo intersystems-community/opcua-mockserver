@@ -56,13 +56,15 @@ string OPCUANodeDataSource::getNodeName(int idx)
 }
 
 
-UA_DataTypeKind OPCUANodeDataSource::getNodeType(int idx)
+int OPCUANodeDataSource::getNodeType(int idx)
 {
     string s = nodeTypes.at(idx);
 
-    if      (s.compare("INT64")     == 0)   { return UA_DATATYPEKIND_INT64;     }
+    if      (s.compare("INT64")     == 0)   { return UA_TYPES_INT64;     }
     
-    else if (s.compare("DATETIME")  == 0)   { return UA_DATATYPEKIND_DATETIME;  }
+    else if (s.compare("DATETIME")  == 0)   { return UA_TYPES_DATETIME;  }
+    
+    else if (s.compare("DURATION")  == 0)   { return OPCUANodeDataSource_COLUMNTYPE_DURATION; }
     
     else throw NoTypeDefinedForNodeException("'" + s + "' is not a valid/supported data type.");
 }

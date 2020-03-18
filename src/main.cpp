@@ -40,6 +40,7 @@ typedef struct LoopArg {
   NodeSpec* m_node_spec;
   const char* m_filename;
   int m_start_row;
+  int m_utime_int;
 } LoopArg;
 
 
@@ -60,11 +61,9 @@ uint64_t getTime() {
 
 
 
-static bool updateNode(UA_Server* p_server, UA_NodeId p_node_id, std::string* p_value, int p_type) {
+static int updateNode(UA_Server* p_server, UA_NodeId p_node_id, std::string* p_value, int p_type) {
   UA_Variant t_var; 
   UA_Variant_init(&t_var);
-
-  bool t_ret = false;
 
   if (p_value == NULL || p_value->c_str() == NULL || strlen(p_value->c_str()) == 0) {
     
@@ -78,7 +77,6 @@ static bool updateNode(UA_Server* p_server, UA_NodeId p_node_id, std::string* p_
       {
         UA_Int64 t_val_i64 = atoll(p_value->c_str());
         UA_Variant_setScalarCopy(&t_var, &t_val_i64, &UA_TYPES[p_type]);
-        t_ret = true;
         break;
       }
     case UA_TYPES_DATETIME:
@@ -137,9 +135,12 @@ static bool updateNode(UA_Server* p_server, UA_NodeId p_node_id, std::string* p_
 
         UA_DateTime t_val_dt = UA_DateTime_fromStruct(t_uadts);
         UA_Variant_setScalarCopy(&t_var, &t_val_dt, &UA_TYPES[p_type]);
-        t_ret = true;
         break;
 
+      }
+    case OPCUANodeDataSource_COLUMNTYPE_DURATION:
+      {
+        return atoi(p_value->c_str());
       }
     default:
       {
@@ -151,12 +152,12 @@ static bool updateNode(UA_Server* p_server, UA_NodeId p_node_id, std::string* p_
   
   UA_Server_writeValue(p_server, p_node_id, t_var);
 
-  return t_ret;
+  return 0;
 }
 
 
 
-static bool updateNodes(UA_Server* p_server, NodeSpec* p_node_spec) {
+static int updateNodes(UA_Server* p_server, NodeSpec* p_node_spec) {
   std::vector<std::string> t_row;
   std::string t_line, t_word;
 
@@ -174,26 +175,28 @@ static bool updateNodes(UA_Server* p_server, NodeSpec* p_node_spec) {
   }
 
   if (t_row.size() <= 0) {
-    return false;
+    return -1;
   } else if (t_row.size() < p_node_spec->m_qty_nodes) {
     throw std::runtime_error("Insufficient data to update all nodes");
   }
 
-  int i = 0;
-
+  int i = 0, t_ret = 0, t_tmp = 0;
   try {
 
     for (i=0; i<p_node_spec->m_qty_nodes; i++) {
       UA_NodeId* t_node_id = &p_node_spec->m_node_ids[i];
       int t_type = p_node_spec->m_types[i];
-      updateNode(p_server, p_node_spec->m_node_ids[i], &t_row[i], p_node_spec->m_types[i]);
+      t_tmp = updateNode(p_server, p_node_spec->m_node_ids[i], &t_row[i], p_node_spec->m_types[i]);
+      if (t_tmp > 0) { 
+        t_ret = t_tmp; 
+      }
     }
 
   } catch (std::exception &e) {
     throw std::runtime_error("Error updating node value at column idx " + to_string(i) + " : " + string(e.what()));
   }
 
-  return true;
+  return t_ret;
 }
 
 
@@ -231,8 +234,8 @@ static void* loop(void* p_ptr) {
   LoopArg* t_loop_arg = (LoopArg*)p_ptr;
  
   int       t_utime;
-  int       t_utime_int = SLEEP_TIME_MILLIS * 1000;
-  int       t_utime_min = 100;
+  int       t_utime_int;
+  int       t_utime_min = 100 * 1000;
   uint64_t  t_last_time = getTime();
   uint64_t  t_cur_time;
 
@@ -252,10 +255,16 @@ static void* loop(void* p_ptr) {
     }
 
     try {
-      if (!updateNodes(t_loop_arg->m_server, t_loop_arg->m_node_spec)) {
+      int t = updateNodes(t_loop_arg->m_server, t_loop_arg->m_node_spec);
+      if (t < 0) {
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Empty row (or EOF) encounterd at row %d. Closing.", t_row);
         closeDataFile(t_loop_arg->m_node_spec);
         t_open = false;
+        t_utime_int = 0;
+      } else if (t == 0) {
+        t_utime_int = t_loop_arg->m_utime_int;
+      } else {
+        t_utime_int = t * 1000;
       }
     } catch (exception &e) {
       string msg = "Error updating nodes at row " + to_string(t_row) + " : " + string(e.what());
@@ -436,6 +445,7 @@ int main(int argc, char** argv) {
   t_loop_arg.m_server = server;
   t_loop_arg.m_filename = t_filename;
   t_loop_arg.m_start_row = t_start_row;
+  t_loop_arg.m_utime_int = SLEEP_TIME_MILLIS * 1000;
 
   pthread_t thread;
   int ret = 0;

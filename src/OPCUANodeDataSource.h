@@ -1,6 +1,8 @@
 #ifndef OPCUANodeDataSource_CLASS
 #define OPCUANodeDataSource_CLASS
 
+#define OPCUANodeDataSource_COLUMNTYPE_DURATION -1
+
 #include <string>
 #include <fstream>
 #include <sstream>
@@ -28,7 +30,7 @@ class OPCUANodeDataSource
         int getNumberOfNodes();
 
         string getNodeName(int idx);
-        UA_DataTypeKind getNodeType(int idx);
+        int getNodeType(int idx);
 
 };
 
