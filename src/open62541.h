@@ -62,7 +62,7 @@
 /* #undef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS */
 
 /* Multithreading */
-/* #undef UA_ENABLE_IMMUTABLE_NODES */
+#define UA_ENABLE_IMMUTABLE_NODES /* #undef UA_ENABLE_IMMUTABLE_NODES */
 #define UA_MULTITHREADING 0
 #if UA_MULTITHREADING >= 200 && !defined(UA_ENABLE_IMMUTABLE_NODES)
 #error "The multithreading feature requires nodes to be immutable"

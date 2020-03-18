@@ -38,6 +38,7 @@ typedef struct NodeSpec {
 typedef struct LoopArg {
   UA_Server* m_server;
   NodeSpec* m_node_spec;
+  const char* m_filename;
   int m_start_row;
 } LoopArg;
 
@@ -67,8 +68,9 @@ static bool updateNode(UA_Server* p_server, UA_NodeId p_node_id, std::string* p_
 
   if (p_value == NULL || p_value->c_str() == NULL || strlen(p_value->c_str()) == 0) {
     
-    UA_Variant_setScalarCopy(&t_var, NULL, &UA_TYPES[p_type]);
-  
+    UA_Variant_clear(&t_var);
+    t_var.type = &UA_TYPES[p_type];
+
   } else {
 
     switch (p_type) {
@@ -155,8 +157,6 @@ static bool updateNode(UA_Server* p_server, UA_NodeId p_node_id, std::string* p_
 
 
 static bool updateNodes(UA_Server* p_server, NodeSpec* p_node_spec) {
-  bool ret = true;
-
   std::vector<std::string> t_row;
   std::string t_line, t_word;
 
@@ -173,7 +173,9 @@ static bool updateNodes(UA_Server* p_server, NodeSpec* p_node_spec) {
     throw std::runtime_error("Error reading line elements : " + string(e.what()));
   }
 
-  if (t_row.size() < p_node_spec->m_qty_nodes) {
+  if (t_row.size() <= 0) {
+    return false;
+  } else if (t_row.size() < p_node_spec->m_qty_nodes) {
     throw std::runtime_error("Insufficient data to update all nodes");
   }
 
@@ -184,14 +186,43 @@ static bool updateNodes(UA_Server* p_server, NodeSpec* p_node_spec) {
     for (i=0; i<p_node_spec->m_qty_nodes; i++) {
       UA_NodeId* t_node_id = &p_node_spec->m_node_ids[i];
       int t_type = p_node_spec->m_types[i];
-      ret = ret && updateNode(p_server, p_node_spec->m_node_ids[i], &t_row[i], p_node_spec->m_types[i]);
+      updateNode(p_server, p_node_spec->m_node_ids[i], &t_row[i], p_node_spec->m_types[i]);
     }
 
   } catch (std::exception &e) {
     throw std::runtime_error("Error updating node value at column idx " + to_string(i) + " : " + string(e.what()));
   }
 
-  return ret;
+  return true;
+}
+
+
+
+static bool openDataFile(NodeSpec* p_node_spec, const char* p_filename, int p_throw_away_lines = 3) {
+  try {
+
+    p_node_spec->m_data_in.open(p_filename, std::ios::in); 
+    std::string t_line;
+
+    for (int i=0; i<p_throw_away_lines; i++) {
+      std::getline(p_node_spec->m_data_in, t_line); // throw away
+    }
+
+    return true;
+
+  } catch (...) {
+
+    return false;
+
+  }
+}
+
+
+
+static void closeDataFile(NodeSpec* p_node_spec) {
+  try {
+    p_node_spec->m_data_in.close(); 
+  } catch (...) {}
 }
 
 
@@ -205,10 +236,27 @@ static void* loop(void* p_ptr) {
   uint64_t  t_last_time = getTime();
   uint64_t  t_cur_time;
 
-  int t_row = t_loop_arg->m_start_row + 1;
+  bool t_open = false;
+
+  int t_row;
   while (running == 1) {
+    if (!t_open) {
+      t_open = openDataFile(t_loop_arg->m_node_spec, t_loop_arg->m_filename, t_loop_arg->m_start_row - 1);
+      if (t_open) {
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Opened file %s", t_loop_arg->m_filename);
+        t_row = t_loop_arg->m_start_row;
+      } else {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Unable to open file %s", t_loop_arg->m_filename);
+        break;
+      }
+    }
+
     try {
-      updateNodes(t_loop_arg->m_server, t_loop_arg->m_node_spec);
+      if (!updateNodes(t_loop_arg->m_server, t_loop_arg->m_node_spec)) {
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Empty row (or EOF) encounterd at row %d. Closing.", t_row);
+        closeDataFile(t_loop_arg->m_node_spec);
+        t_open = false;
+      }
     } catch (exception &e) {
       string msg = "Error updating nodes at row " + to_string(t_row) + " : " + string(e.what());
       //throw exception(msg);
@@ -304,27 +352,6 @@ static bool setupDataModel(UA_Server* p_server, OPCUANodeDataSource* nodeDataSou
 
 
 
-static bool openDataFile(NodeSpec* p_node_spec, const char* p_filename, int p_throw_away_lines = 3) {
-  try {
-
-    p_node_spec->m_data_in.open(p_filename, std::ios::in); 
-    std::string t_line;
-
-    for (int i=0; i<p_throw_away_lines; i++) {
-      std::getline(p_node_spec->m_data_in, t_line); // throw away
-    }
-
-    return true;
-
-  } catch (...) {
-
-    return false;
-
-  }
-}
-
-
-
 int main(int argc, char** argv) {
   
   OPCUANodeDataSource* nodeDataSource;
@@ -407,9 +434,8 @@ int main(int argc, char** argv) {
   LoopArg t_loop_arg;
   t_loop_arg.m_node_spec = &t_node_spec;
   t_loop_arg.m_server = server;
+  t_loop_arg.m_filename = t_filename;
   t_loop_arg.m_start_row = t_start_row;
-
-  openDataFile(&t_node_spec, t_filename, t_start_row);
 
   pthread_t thread;
   int ret = 0;
