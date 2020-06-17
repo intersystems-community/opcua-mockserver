@@ -2,6 +2,8 @@
 #include <dirent.h>
 #include <string.h>
 #include <stdbool.h>
+#include <ctype.h>
+
 
 const char* FILE_DATA_SOURCE_FOLDER = "/app/data/";
 
@@ -42,4 +44,24 @@ bool findNextFile()
 
 char* getCurrentFile() {
   return currentFilename;
+}
+
+
+char* trimwhitespace(char *str) {
+  char *end;
+
+  // Trim leading space
+  while(isspace((unsigned char)*str)) str++;
+
+  if(*str == 0)  // All spaces?
+    return str;
+
+  // Trim trailing space
+  end = str + strlen(str) - 1;
+  while(end > str && isspace((unsigned char)*end)) end--;
+
+  // Write new null terminator character
+  end[1] = '\0';
+
+  return str;
 }

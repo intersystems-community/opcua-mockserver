@@ -4,4 +4,6 @@
 bool findNextFile();
 char* getCurrentFile();
 
+char* trimwhitespace(char *str);
+
 #endif

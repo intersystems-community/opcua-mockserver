@@ -1,3 +1,5 @@
+#include "datasource.h"
+
 #include "OPCUANodeDataSource.h"
 
 OPCUANodeDataSource::OPCUANodeDataSource(string dataSourceFileName)
@@ -24,6 +26,9 @@ OPCUANodeDataSource::OPCUANodeDataSource(string dataSourceFileName)
     {
         if (getline(nodeTypesStream, nodeType, ','))
         {
+            nodeName = std::string(trimwhitespace((char*)nodeName.c_str()));
+            nodeType = std::string(trimwhitespace((char*)nodeType.c_str()));
+
             this->nodeNames.push_back(nodeName);
             this->nodeTypes.push_back(nodeType);
             this->numberOfNodes++;
